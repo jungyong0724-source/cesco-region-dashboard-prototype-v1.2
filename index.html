@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CESCO 내 지역 현황판 (Phase 1.2)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app-container">
+
+    <!-- ══════════════════════════════════════════════════ -->
+    <!-- Screen 1: Main Dashboard                          -->
+    <!-- ══════════════════════════════════════════════════ -->
+    <section id="screen-main" class="screen active">
+      <header class="app-header">
+        <button class="header-btn header-absolute-left" id="btn-back-main">‹</button>
+        <h1 class="header-title">내 지역 현황판</h1>
+        <button class="header-btn header-absolute-right" id="btn-close-main">✕</button>
+      </header>
+
+      <!-- 로그인 사용자 · 담당지역(디폴트) 안내 + 내 주위 신규 개업 매장 보기 -->
+      <div class="user-info-bar">
+        <span class="user-info-text"><b id="user-info-name">-</b>님 · <span id="user-info-branch">-</span> 담당</span>
+        <button class="btn-nearby" id="btn-nearby">📍 내 주위 신규 개업 매장 보기</button>
+      </div>
+
+      <!-- 필터 영역 접기·펼치기 — 하단 리스트 확보용 -->
+      <button class="filter-panel-toggle" id="filter-panel-toggle" type="button">
+        <span id="filter-panel-toggle-label">필터 접기</span>
+        <svg id="filter-panel-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+      </button>
+
+      <div id="filter-panel">
+        <div class="search-container">
+          <div class="search-input-wrap" id="search-input">
+            <input type="text" id="search-display-input" placeholder="지역, 고객 상호명, 업종(한글)을 검색해 주세요." readonly>
+            <span class="search-clear-btn" id="search-clear-btn" style="display:none;">✕</span>
+            <span class="search-btn">🔍</span>
+          </div>
+        </div>
+
+        <!-- 지사 필터: 조직축(세스코/CLC) → 사업부·총국 → 지사·지국 3단계 계층형 드롭다운 -->
+        <div class="tabs-block">
+          <div class="tabs-row-label">지사</div>
+          <div class="branch-select-wrap" id="branch-select-wrap">
+            <button class="branch-select-trigger" id="branch-select-trigger" type="button">
+              <span class="branch-select-labels">
+                <span class="branch-select-label" id="branch-select-label">-</span>
+                <span class="branch-select-sub" id="branch-select-sub">-</span>
+              </span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="branch-select-panel" id="branch-select-panel">
+              <div class="branch-select-step">
+                <div class="branch-select-step-title">조직</div>
+                <div class="chips-scroll branch-select-row" id="orgaxis-chip-row"></div>
+              </div>
+              <div class="branch-select-step">
+                <div class="branch-select-step-title" id="division-step-title">사업부</div>
+                <div class="chips-scroll branch-select-row" id="division-chip-row"></div>
+              </div>
+              <div class="branch-select-step">
+                <div class="branch-select-step-title" id="branch-step-title">지사</div>
+                <div class="chips-scroll branch-select-row" id="branch-chip-row"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tabs-row-label">업종</div>
+          <div class="chips-scroll tabs-row" id="tabs-industry"></div>
+        </div>
+
+        <div class="map-search-row">
+          <button class="filter-icon-btn" id="btn-filter">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/>
+            </svg>
+          </button>
+          <div class="chips-scroll" id="main-chips"></div>
+        </div>
+      </div>
+
+      <div class="search-result-text">
+        <span id="result-branch-text">서울동부지사</span> 담당 지역 내 검색 결과 <span id="result-count">3</span> 곳
+      </div>
+
+      <!-- 지도 + 리스트 영역 (드래그 전환) -->
+      <div id="map-list-container">
+        <div id="map-wrapper">
+          <div id="main-map"></div>
+        </div>
+        <div id="drag-handle">
+          <div class="drag-dots"></div>
+        </div>
+        <div id="card-list-wrapper">
+          <div class="content-scroll" id="main-card-list"></div>
+        </div>
+      </div>
+
+      <!-- 지도보기 플로팅 버튼 (리스트 전체일 때) -->
+      <button class="floating-map-btn" id="btn-show-map" style="display:none">
+        🗺 지도보기
+      </button>
+
+      <nav class="bottom-nav">
+        <div class="nav-item">≡</div>
+        <div class="nav-item">⌂</div>
+        <div class="nav-item">🔍</div>
+      </nav>
+    </section>
+
+
+    <!-- ══════════════════════════════════════════════════ -->
+    <!-- Screen 2: Search                                  -->
+    <!-- ══════════════════════════════════════════════════ -->
+    <section id="screen-search" class="screen modal">
+      <header class="app-header">
+        <button class="header-btn header-absolute-left" id="btn-close-search">✕</button>
+        <h1 class="header-title">검색</h1>
+      </header>
+
+      <div class="search-container">
+        <div class="search-input-wrap">
+          <input type="text" id="search-text-input" placeholder="지역, 고객 상호명, 업종(한글)을 검색해 주세요.">
+          <span class="search-btn">🔍</span>
+        </div>
+      </div>
+
+      <div class="pad-16" style="padding-top: 0;">
+        <div class="search-recent-header">
+          <span class="section-title" style="margin:0;">최근 검색 기록</span>
+          <button class="btn-text">전체 삭제</button>
+        </div>
+        <div class="chips-scroll mb-16" style="flex-wrap: wrap;">
+          <div class="chip">고객 상호명 ✕</div>
+          <div class="chip">서울 ✕</div>
+          <div class="chip">상일동 ✕</div>
+        </div>
+
+        <div class="section-title">지역선택</div>
+
+        <!-- 시/도 커스텀 드롭다운 -->
+        <div class="custom-select-wrap" id="sido-wrap">
+          <div class="custom-select-trigger" id="sido-trigger">
+            <span id="sido-label">시/도</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div class="custom-select-panel" id="sido-panel">
+            <label class="check-item"><input type="checkbox" value="전체"> <span>전체</span></label>
+            <label class="check-item"><input type="checkbox" value="강원특별자치도"> <span>강원특별자치도</span></label>
+            <label class="check-item"><input type="checkbox" value="광주광역시"> <span>광주광역시</span></label>
+            <label class="check-item"><input type="checkbox" value="경기도"> <span>경기도</span></label>
+            <label class="check-item"><input type="checkbox" value="경상남도"> <span>경상남도</span></label>
+            <label class="check-item"><input type="checkbox" value="경상북도"> <span>경상북도</span></label>
+            <label class="check-item"><input type="checkbox" value="대구광역시"> <span>대구광역시</span></label>
+            <label class="check-item"><input type="checkbox" value="대전광역시"> <span>대전광역시</span></label>
+            <label class="check-item"><input type="checkbox" value="부산광역시"> <span>부산광역시</span></label>
+            <label class="check-item"><input type="checkbox" value="서울특별시"> <span>서울특별시</span></label>
+            <label class="check-item"><input type="checkbox" value="세종특별자치시"> <span>세종특별자치시</span></label>
+            <label class="check-item"><input type="checkbox" value="울산광역시"> <span>울산광역시</span></label>
+            <label class="check-item"><input type="checkbox" value="인천광역시"> <span>인천광역시</span></label>
+            <label class="check-item"><input type="checkbox" value="전라남도"> <span>전라남도</span></label>
+            <label class="check-item"><input type="checkbox" value="전라북도"> <span>전라북도</span></label>
+            <label class="check-item"><input type="checkbox" value="제주특별자치도"> <span>제주특별자치도</span></label>
+            <label class="check-item"><input type="checkbox" value="충청남도"> <span>충청남도</span></label>
+            <label class="check-item"><input type="checkbox" value="충청북도"> <span>충청북도</span></label>
+          </div>
+        </div>
+
+        <select class="select-box" id="search-sigungu">
+          <option>구/군</option>
+        </select>
+        <select class="select-box" id="search-eupmyeondong">
+          <option>읍/면/동</option>
+        </select>
+      </div>
+
+      <div class="bottom-fixed-btn">
+        <button class="btn btn-outline" id="btn-reset-search">↻ 초기화</button>
+        <button class="btn btn-primary" id="btn-apply-search">적용</button>
+      </div>
+    </section>
+
+
+    <!-- ══════════════════════════════════════════════════ -->
+    <!-- Screen 3: Filter                                  -->
+    <!-- ══════════════════════════════════════════════════ -->
+    <section id="screen-filter" class="screen modal">
+      <header class="app-header">
+        <button class="header-btn header-absolute-left" id="btn-close-filter">✕</button>
+        <h1 class="header-title">필터</h1>
+      </header>
+
+      <div class="content-scroll pad-16">
+        <p style="font-size:12px; color:var(--text-light); margin-bottom:16px;">
+          개업기간 필터는 메인화면 상단으로 통합됐습니다 — 여기서는 고객유형(업종)·매출구간만 다룹니다.
+        </p>
+
+        <div id="section-type" class="filter-section">
+          <div class="section-title" style="margin-top:20px;">고객유형(업종) — 마케팅 신업종</div>
+          <select class="select-box" id="filter-type-l1"><option value="">대분류</option></select>
+          <select class="select-box" id="filter-type-l2"><option value="">중분류</option></select>
+          <select class="select-box" id="filter-type-l3"><option value="">소분류</option></select>
+          <select class="select-box mb-16" id="filter-type-l4"><option value="">세분류</option></select>
+        </div>
+
+        <div class="section-title">매출 구간</div>
+        <select class="select-box mb-16" id="filter-revenue">
+          <option value="">전체</option>
+          <option value="lt1">연매출 1억 미만</option>
+          <option value="1to3">연매출 1~3억</option>
+          <option value="3to10">연매출 3~10억</option>
+          <option value="10to30">연매출 10~30억</option>
+          <option value="gt30">연매출 30억 이상</option>
+        </select>
+      </div>
+
+      <div class="bottom-fixed-btn">
+        <button class="btn btn-outline" id="btn-reset-filter">↻ 초기화</button>
+        <button class="btn btn-primary" id="btn-apply-filter">적용</button>
+      </div>
+    </section>
+
+
+    <!-- ══════════════════════════════════════════════════ -->
+    <!-- Screen 4: Customer Detail                         -->
+    <!-- ══════════════════════════════════════════════════ -->
+    <section id="screen-detail" class="screen">
+      <header class="app-header">
+        <button class="header-btn header-absolute-left" id="btn-back-detail">‹</button>
+        <h1 class="header-title">내 지역 현황판</h1>
+        <button class="header-btn header-absolute-right" id="btn-close-detail">✕</button>
+      </header>
+
+      <div class="content-scroll">
+        <div class="detail-block">
+          <div class="card-tags" id="detail-tags"></div>
+          <div class="card-title-row" style="margin-top:12px;">
+            <div class="card-title" style="font-size: 20px;" id="detail-company-name">-</div>
+            <div class="card-distance" id="detail-distance">📍 -</div>
+          </div>
+
+          <button class="navi-btn-large" id="btn-navi-detail">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M3 11l19-9-9 19-2-8-8-2z"/>
+            </svg>
+            길찾기
+          </button>
+
+          <hr style="border:0; border-top:1px solid var(--border-color); margin: 14px 0 12px;">
+          <table class="detail-table">
+            <tr><td colspan="2" id="detail-address">-</td></tr>
+            <tr>
+              <td id="detail-ceo">-</td>
+              <td style="text-align:right; color:#777;" id="detail-birth">19XX년 출생</td>
+            </tr>
+            <tr>
+              <td style="color:#777;">입지조건 표시 영역</td>
+              <td style="text-align:right; color:#777;">사업장, 본사 등의 구분</td>
+            </tr>
+            <tr>
+              <td id="detail-phone">T. -</td>
+              <td style="text-align:right;" id="detail-fax">F. -</td>
+            </tr>
+          </table>
+          <hr style="border:0; border-top:1px solid var(--border-color); margin: 12px 0;">
+          <table class="detail-table">
+            <tr><td colspan="2" style="color:#777;">고객유형 표시 영역</td></tr>
+            <tr><td colspan="2" id="detail-revenue">매출 규모 -</td></tr>
+            <tr><td colspan="2" id="detail-area">면적 -</td></tr>
+          </table>
+          <hr style="border:0; border-top:1px solid var(--border-color); margin: 12px 0;">
+
+          <div class="detail-etc-header">기타 정보</div>
+          <div class="detail-etc-body" id="detail-etc">
+            활용 가능한 매장 정보 표기 영역, 활용 가능한 매장 정보 표기 영역 활용 가능한 매장 정보 표기 영역
+          </div>
+        </div>
+
+        <div id="detail-map" style="height:200px;"></div>
+
+        <div class="detail-extra-block">
+          <table class="detail-extra-table">
+            <tr>
+              <td class="extra-label">임차보증금</td>
+              <td id="detail-deposit">-</td>
+            </tr>
+            <tr>
+              <td class="extra-label">월세금액</td>
+              <td id="detail-monthly-rent">-</td>
+            </tr>
+            <tr>
+              <td class="extra-label">고용인원</td>
+              <td id="detail-employees">-</td>
+            </tr>
+            <tr>
+              <td class="extra-label">홈페이지</td>
+              <td id="detail-homepage">-</td>
+            </tr>
+            <tr>
+              <td class="extra-label">이메일</td>
+              <td id="detail-email">-</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <nav class="bottom-nav">
+        <div class="nav-item">≡</div>
+        <div class="nav-item">⌂</div>
+        <div class="nav-item">🔍</div>
+      </nav>
+    </section>
+
+
+    <!-- ══════════════════════════════════════════════════ -->
+    <!-- 길안내 앱 선택 모달                               -->
+    <!-- ══════════════════════════════════════════════════ -->
+    <div id="navi-modal-overlay" class="modal-overlay" style="display:none">
+      <div class="navi-modal">
+        <div class="navi-modal-title">길안내를 실행할 앱을 선택해 주세요.</div>
+        <div class="navi-options" id="navi-options">
+          <button class="navi-option" data-app="tmap">
+            <div class="navi-icon navi-icon-tmap">T</div>
+            <span>T map</span>
+          </button>
+          <button class="navi-option" data-app="naver">
+            <div class="navi-icon navi-icon-naver">N</div>
+            <span>네이버 지도</span>
+          </button>
+          <button class="navi-option" data-app="kakao">
+            <div class="navi-icon navi-icon-kakao">K</div>
+            <span>카카오내비</span>
+          </button>
+          <button class="navi-option" data-app="copy">
+            <div class="navi-icon navi-icon-copy">📋</div>
+            <span>주소 복사</span>
+          </button>
+        </div>
+        <button class="btn btn-outline" id="btn-close-navi" style="margin:0 16px 16px; width:calc(100% - 32px);">닫기</button>
+      </div>
+    </div>
+
+    <!-- 주소 복사 완료 토스트 -->
+    <div id="copy-toast" class="copy-toast" style="display:none">주소가 복사되었습니다</div>
+
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="industry_type_data.js"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
