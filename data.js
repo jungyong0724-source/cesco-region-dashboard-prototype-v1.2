@@ -58,6 +58,37 @@ const BRANCH_TO_PARENT = { '세스코': {}, 'CLC': {} };
 DIVISION_LIST.forEach(d => d.branches.forEach(b => { BRANCH_TO_PARENT['세스코'][b] = d.name; }));
 CLC_BUREAU_LIST.forEach(d => d.branches.forEach(b => { BRANCH_TO_PARENT['CLC'][b] = d.name; }));
 
+// ─── 법정동 트리 (지역선택 3단계 — 시/도 → 구·군 → 읍·면·동) ─────────
+// ⚠️ 프로토타입 fixture. 실서비스는 배포된 `POST /local-area/bjd-code`로 각 단계를 로드하고
+//    선택된 법정동 코드 배열을 `SCH_ADDRS`로 전달한다.
+const BJD_TREE = {
+  '서울특별시': {
+    '종로구':   ['누상동', '청운동', '효자동'],
+    '중랑구':   ['묵동', '상봉동', '면목동'],
+    '동대문구': ['휘경동', '전농동', '이문동'],
+    '용산구':   ['이태원동', '한남동', '청파동'],
+    '금천구':   ['독산동', '시흥동', '가산동']
+  },
+  '경기도': {
+    '수원시': ['세류동', '권선동', '인계동'],
+    '구리시': ['수택동', '인창동', '교문동'],
+    '이천시': ['부발읍', '증포동', '창전동']
+  },
+  '대구광역시': {
+    '동구':   ['방촌동', '신암동', '효목동'],
+    '달서구': ['감삼동', '두류동', '성당동'],
+    '북구':   ['산격동', '복현동', '침산동']
+  },
+  '부산광역시': { '금정구': ['남산동', '장전동', '구서동'] },
+  '광주광역시': { '광산구': ['월곡동', '우산동', '신가동'] },
+  '전라남도':   { '여수시': ['죽포리', '학동', '여서동'] }
+};
+// 주소 문자열은 축약형("서울", "경기", "전남")을 쓰므로 시/도만 선택했을 때의 매칭용 축약 맵
+const SIDO_SHORT = {
+  '서울특별시': '서울', '경기도': '경기', '대구광역시': '대구',
+  '부산광역시': '부산', '광주광역시': '광주', '전라남도': '전남'
+};
+
 // ─── 업종 목록 (업종 빠른탭 — 세스코 방역 관점 10종) ──────────────────
 // 식품위생법·축산물위생관리법·의료법 기준의 세스코 자체 분류.
 // 마케팅 신업종/KSIC 중분류와의 매핑은 `기획/업종매핑표_초안_v0.1.md` 참조.
@@ -469,12 +500,15 @@ ALL_CUSTOMERS.forEach(c => {
 
 // ─── 조회/필터 헬퍼 ─────────────────────────────────────────────────────
 
-// 통합 필터: 조직축(세스코/CLC) / 지사·지국 / 업종 / 개업기간(버킷) / 지역검색어 를 동시에 적용(AND)
-//  - branch 가 'all'(또는 region은 빈 문자열)이면 해당 조건은 무시
-//  - orgAxis 가 'CLC'면 지사 필터는 clcBranch 필드로 매칭, 그 외엔 branch 필드로 매칭
+// 통합 필터: 조직축(세스코/CLC) / 지사·지국 / 업종 / 개업기간(버킷) / 키워드 / 지역(법정동) 을 동시에 적용(AND)
+//  - branch 가 'all'이면 지사 조건 무시. orgAxis 가 'CLC'면 clcBranch 필드로, 그 외엔 branch 필드로 매칭
 //  - 개업 1년 초과(openBucket === null)는 period 값과 무관하게 항상 제외
-//  - region은 mock 단순 매칭(주소 문자열 포함 여부) — 실서비스는 KODATA API의 SCH_ADDRS 등으로 서버가 처리
-function filterCustomers({ orgAxis = '세스코', branch = 'all', industry = 'all', period = 'all', region = '' } = {}) {
+//  - keyword: 상호명 또는 주소 부분일치 (SCH_KEYWORD 상당)
+//  - regionSido / regionDongs: 지역(법정동) 선택값. 실서비스에서는 SCH_ADDRS(법정동 코드 배열)로 전달되고,
+//    지역을 직접 선택하면 SCH_DEPT_CD(지사)를 빼고 조회한다 → 그 정책은 getFilteredList()에서 branch:'all'로 처리
+//  - mock 이라 주소 문자열 포함 여부로 단순 매칭
+function filterCustomers({ orgAxis = '세스코', branch = 'all', industry = 'all', period = 'all',
+                           keyword = '', regionSido = '', regionDongs = [] } = {}) {
   return ALL_CUSTOMERS.filter(c => {
     if (c.openBucket === null) return false;               // 개업 1년 초과 상시 제외
     if (period !== 'all' && c.openBucket !== period) return false;
@@ -483,7 +517,13 @@ function filterCustomers({ orgAxis = '세스코', branch = 'all', industry = 'al
       if (field !== branch) return false;
     }
     if (industry !== 'all' && c.industryTab !== industry) return false;
-    if (region && !c.address.includes(region)) return false;
+    if (keyword && !(c.companyName.includes(keyword) || c.address.includes(keyword))) return false;
+    if (regionDongs.length) {
+      if (!regionDongs.some(d => c.address.includes(d))) return false;
+    } else if (regionSido) {
+      const short = SIDO_SHORT[regionSido] || regionSido;
+      if (!c.address.includes(short)) return false;
+    }
     return true;
   });
 }

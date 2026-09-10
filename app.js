@@ -9,8 +9,11 @@ document.addEventListener('DOMContentLoaded', () => {
     branch: CURRENT_USER.branch,     // 로그인 기반 디폴트 지역(담당 지사)
     industry: 'all',
     period: 'all',   // 개업기간 필터 — 기본값 "전체"(단, 개업 1년 초과는 항상 제외)
-    regionKeyword: ''   // 지역검색(자유텍스트/시도) 적용값 — 검색화면 "적용" 버튼으로만 세팅됨
+    keyword: '',        // 상호명/키워드 (검색화면 상단 입력, 적용 버튼으로만 세팅)
+    regionSido: '',     // 지역선택 — 시/도 (구·군/읍·면·동 미선택 시 시/도 단위로 매칭)
+    regionDongs: []     // 지역선택 — 읍·면·동 다중. 값이 있으면 지사(SCH_DEPT_CD) 무시하고 조회
   };
+  const regionActive = () => filterState.regionDongs.length > 0 || !!filterState.regionSido;
   let nearbyMode = false;
   let nearbyOrigin = null;   // { lat, lng }
   let nearbyList = [];
@@ -34,7 +37,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-close-filter').addEventListener('click', () => navigateTo('screen-main'));
   document.getElementById('btn-back-main').addEventListener('click', () => {});
   document.getElementById('btn-close-main').addEventListener('click', () => {});
-  document.getElementById('search-input').addEventListener('click', () => navigateTo('screen-search'));
+  document.getElementById('search-input').addEventListener('click', () => {
+    if (typeof window.syncSearchForm === 'function') window.syncSearchForm();
+    navigateTo('screen-search');
+  });
   document.getElementById('btn-filter').addEventListener('click', () => navigateTo('screen-filter'));
 
 
@@ -136,12 +142,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // ══════════════════════════════════════════════════════
   const getFilteredList = () => {
     if (nearbyMode) return nearbyList;
+    // 지역(법정동)을 직접 선택하면 SCH_DEPT_CD(지사)를 빼고 선택 지역 전체를 조회 (Phase1 QA FAQ 확정)
+    const useBranch = regionActive() ? 'all' : filterState.branch;
     return filterCustomers({
       orgAxis: filterState.orgAxis,
-      branch: filterState.branch,
+      branch: useBranch,
       industry: filterState.industry,
       period: filterState.period,
-      region: filterState.regionKeyword
+      keyword: filterState.keyword,
+      regionSido: filterState.regionSido,
+      regionDongs: filterState.regionDongs
     });
   };
 
@@ -290,7 +300,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const updateResultBranchText = () => {
     const el = document.getElementById('result-branch-text');
-    el.textContent = nearbyMode ? '내 위치 반경' : (filterState.branch === 'all' ? '전체 지역' : filterState.branch);
+    if (nearbyMode) { el.textContent = '내 위치 반경'; return; }
+    if (regionActive()) {
+      el.textContent = filterState.regionDongs.length
+        ? filterState.regionDongs[0] + (filterState.regionDongs.length > 1 ? ` 외 ${filterState.regionDongs.length - 1}곳` : '')
+        : filterState.regionSido;
+      return;
+    }
+    el.textContent = filterState.branch === 'all' ? '전체 지역' : filterState.branch;
   };
 
   // ── 개업기간 필터: 4구간 단일 필터 (전체/1~30일/31~60일/61~90일/90일~1년) ──
@@ -717,57 +734,201 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   // ══════════════════════════════════════════════════════
-  // 13. 검색 화면 – 지역 커스텀 드롭다운 + 적용/초기화 버튼
+  // 13. 검색 화면 – 상호/키워드 + 지역선택 3단계(시/도 → 구·군 → 읍·면·동 다중)
+  //     실서비스는 각 단계를 POST /local-area/bjd-code 로 로드하고 선택 법정동을
+  //     SCH_ADDRS 배열로 전달. mock 이라 BJD_TREE fixture + 주소 문자열 매칭.
   // ══════════════════════════════════════════════════════
-  const sidoTrigger = document.getElementById('sido-trigger');
-  const sidoPanel   = document.getElementById('sido-panel');
-  const sidoLabel   = document.getElementById('sido-label');
+  const searchTextInput = document.getElementById('search-text-input');
+  const sidoSel   = document.getElementById('search-sido');
+  const sigunguSel = document.getElementById('search-sigungu');
+  const dongTrigger = document.getElementById('dong-trigger');
+  const dongPanel   = document.getElementById('dong-panel');
+  const dongLabel   = document.getElementById('dong-label');
+  const recentChipsEl = document.getElementById('recent-search-chips');
 
-  sidoTrigger.addEventListener('click', () => {
-    const isOpen = sidoPanel.classList.contains('open');
-    sidoPanel.classList.toggle('open', !isOpen);
-    sidoTrigger.classList.toggle('open', !isOpen);
-    const svg = sidoTrigger.querySelector('svg');
-    svg.style.transform = isOpen ? '' : 'rotate(180deg)';
-  });
+  let recentSearches = [];   // [{ keyword, sido, sigungu, dongs:[] }]
 
-  sidoPanel.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-    cb.addEventListener('change', () => {
-      const checked = [...sidoPanel.querySelectorAll('input:checked')].map(c => c.value);
-      sidoLabel.textContent = checked.length ? checked.join(', ') : '시/도';
+  // 시/도 채우기
+  Object.keys(BJD_TREE).forEach(sido => sidoSel.appendChild(new Option(sido, sido)));
+
+  const resetSigungu = () => {
+    sigunguSel.innerHTML = '<option value="">구/군</option>';
+    sigunguSel.disabled = true;
+  };
+  const setDongEnabled = (on) => {
+    dongTrigger.setAttribute('aria-disabled', on ? 'false' : 'true');
+    dongTrigger.style.opacity = on ? '' : '0.5';
+    dongTrigger.style.pointerEvents = on ? '' : 'none';
+    if (!on) { dongPanel.classList.remove('open'); dongTrigger.classList.remove('open'); }
+  };
+  const updateDongLabel = () => {
+    const checked = [...dongPanel.querySelectorAll('input.dong-cb:checked')].map(c => c.value);
+    dongLabel.textContent = checked.length ? (checked[0] + (checked.length > 1 ? ` 외 ${checked.length - 1}` : '')) : '읍/면/동';
+  };
+  const renderDongPanel = (sido, sigungu) => {
+    dongPanel.innerHTML = '';
+    if (!sido || !sigungu) { setDongEnabled(false); updateDongLabel(); return; }
+    const dongs = (BJD_TREE[sido] && BJD_TREE[sido][sigungu]) || [];
+    const allRow = document.createElement('label');
+    allRow.className = 'check-item';
+    allRow.innerHTML = `<input type="checkbox" id="dong-all"> <span>이 구/군 전체</span>`;
+    dongPanel.appendChild(allRow);
+    dongs.forEach(d => {
+      const row = document.createElement('label');
+      row.className = 'check-item';
+      row.innerHTML = `<input type="checkbox" class="dong-cb" value="${d}"> <span>${d}</span>`;
+      dongPanel.appendChild(row);
     });
+    dongPanel.querySelector('#dong-all').addEventListener('change', e => {
+      dongPanel.querySelectorAll('input.dong-cb').forEach(cb => cb.checked = e.target.checked);
+      updateDongLabel();
+    });
+    dongPanel.querySelectorAll('input.dong-cb').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const all = dongPanel.querySelector('#dong-all');
+        all.checked = [...dongPanel.querySelectorAll('input.dong-cb')].every(x => x.checked);
+        updateDongLabel();
+      });
+    });
+    setDongEnabled(true);
+    updateDongLabel();
+  };
+
+  sidoSel.addEventListener('change', () => {
+    resetSigungu();
+    renderDongPanel('', '');
+    const sido = sidoSel.value;
+    if (!sido) return;
+    Object.keys(BJD_TREE[sido]).forEach(gu => sigunguSel.appendChild(new Option(gu, gu)));
+    sigunguSel.disabled = false;
+  });
+  sigunguSel.addEventListener('change', () => {
+    renderDongPanel(sidoSel.value, sigunguSel.value);
+  });
+  dongTrigger.addEventListener('click', () => {
+    if (dongTrigger.getAttribute('aria-disabled') === 'true') return;
+    const open = dongPanel.classList.toggle('open');
+    dongTrigger.classList.toggle('open', open);
   });
 
-  // 지역검색 적용/초기화/클리어 — 실서비스에서 지적된 "적용 버튼 부재"(불편점 2.1) 해결.
-  // mock 데이터라 실제 매칭은 address 문자열 포함 여부로 단순화.
+  // 검색창(메인) 표시 문자열 + ✕
+  const regionSummary = () => {
+    if (filterState.regionDongs.length) {
+      return filterState.regionDongs[0] + (filterState.regionDongs.length > 1 ? ` 외 ${filterState.regionDongs.length - 1}곳` : '');
+    }
+    return filterState.regionSido || '';
+  };
   const updateSearchDisplay = () => {
     const display = document.getElementById('search-display-input');
     const clearBtn = document.getElementById('search-clear-btn');
-    display.value = filterState.regionKeyword;
-    clearBtn.style.display = filterState.regionKeyword ? 'inline' : 'none';
+    const parts = [];
+    if (filterState.keyword) parts.push(`"${filterState.keyword}"`);
+    if (regionActive()) parts.push(regionSummary());
+    display.value = parts.join(' · ');
+    clearBtn.style.display = parts.length ? 'inline' : 'none';
   };
 
+  // 검색화면을 열 때 현재 적용값으로 폼을 맞춰줌
+  const syncSearchForm = () => {
+    searchTextInput.value = filterState.keyword;
+    sidoSel.value = filterState.regionSido || '';
+    resetSigungu();
+    renderDongPanel('', '');
+    if (filterState.regionSido && BJD_TREE[filterState.regionSido]) {
+      Object.keys(BJD_TREE[filterState.regionSido]).forEach(gu => sigunguSel.appendChild(new Option(gu, gu)));
+      sigunguSel.disabled = false;
+      // 적용된 읍·면·동이 어느 구/군인지 역추적
+      const gu = Object.keys(BJD_TREE[filterState.regionSido]).find(g =>
+        filterState.regionDongs.some(d => BJD_TREE[filterState.regionSido][g].includes(d)));
+      if (gu) {
+        sigunguSel.value = gu;
+        renderDongPanel(filterState.regionSido, gu);
+        filterState.regionDongs.forEach(d => {
+          const cb = dongPanel.querySelector(`input.dong-cb[value="${d}"]`);
+          if (cb) cb.checked = true;
+        });
+        const all = dongPanel.querySelector('#dong-all');
+        if (all) all.checked = [...dongPanel.querySelectorAll('input.dong-cb')].every(x => x.checked);
+        updateDongLabel();
+      }
+    }
+  };
+  window.syncSearchForm = syncSearchForm;
+
+  const renderRecentChips = () => {
+    recentChipsEl.innerHTML = '';
+    if (!recentSearches.length) {
+      recentChipsEl.innerHTML = '<span style="font-size:12px;color:var(--text-light);">최근 검색 기록이 없습니다.</span>';
+      return;
+    }
+    recentSearches.forEach((r, i) => {
+      const chip = document.createElement('div');
+      chip.className = 'chip';
+      const region = r.dongs.length
+        ? (r.dongs[0] + (r.dongs.length > 1 ? ` 외 ${r.dongs.length - 1}` : ''))
+        : (r.sido || '');
+      const label = [r.keyword ? `"${r.keyword}"` : '', region].filter(Boolean).join(' · ');
+      chip.textContent = label + ' ✕';
+      chip.addEventListener('click', () => {
+        recentSearches.splice(i, 1);
+        renderRecentChips();
+      });
+      recentChipsEl.appendChild(chip);
+    });
+  };
+  const pushRecent = (entry) => {
+    const key = JSON.stringify(entry);
+    recentSearches = recentSearches.filter(r => JSON.stringify(r) !== key);
+    recentSearches.unshift(entry);
+    recentSearches = recentSearches.slice(0, 5);
+    renderRecentChips();
+  };
+  document.getElementById('btn-clear-recent').addEventListener('click', () => {
+    recentSearches = [];
+    renderRecentChips();
+  });
+
+  // 적용 — 상호/키워드 + 지역선택을 filterState에 반영
   document.getElementById('btn-apply-search').addEventListener('click', () => {
-    const keyword = document.getElementById('search-text-input').value.trim();
-    const checkedSido = [...sidoPanel.querySelectorAll('input:checked')]
-      .map(c => c.value).filter(v => v !== '전체');
-    filterState.regionKeyword = keyword || checkedSido.join(' ');
+    filterState.keyword = searchTextInput.value.trim();
+
+    const sido = sidoSel.value;
+    const gu = sigunguSel.value;
+    let dongs = [...dongPanel.querySelectorAll('input.dong-cb:checked')].map(c => c.value);
+    // 구/군까지만 골랐으면 "그 구/군 전체"로 간주 (하위 미선택 = 상위 전체)
+    if (!dongs.length && sido && gu) dongs = (BJD_TREE[sido][gu] || []).slice();
+
+    filterState.regionSido = sido;
+    filterState.regionDongs = dongs;
+
+    if (filterState.keyword || regionActive()) {
+      pushRecent({ keyword: filterState.keyword, sido, sigungu: gu, dongs });
+    }
     updateSearchDisplay();
     if (nearbyMode) exitNearbyMode(false);
     navigateTo('screen-main');
     onFilterChange();
   });
+
+  // 초기화 — 폼만 비움(적용값은 유지, phase1 동작 승계)
   document.getElementById('btn-reset-search').addEventListener('click', () => {
-    document.getElementById('search-text-input').value = '';
-    sidoPanel.querySelectorAll('input:checked').forEach(cb => cb.checked = false);
-    sidoLabel.textContent = '시/도';
+    searchTextInput.value = '';
+    sidoSel.value = '';
+    resetSigungu();
+    renderDongPanel('', '');
   });
+
+  // 메인 검색창 ✕ — 키워드·지역 적용값 전부 해제
   document.getElementById('search-clear-btn').addEventListener('click', (e) => {
     e.stopPropagation();
-    filterState.regionKeyword = '';
+    filterState.keyword = '';
+    filterState.regionSido = '';
+    filterState.regionDongs = [];
     updateSearchDisplay();
     onFilterChange();
   });
+
+  renderRecentChips();
 
 
   // ══════════════════════════════════════════════════════

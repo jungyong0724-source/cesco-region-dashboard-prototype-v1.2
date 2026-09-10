@@ -123,58 +123,39 @@
 
       <div class="search-container">
         <div class="search-input-wrap">
-          <input type="text" id="search-text-input" placeholder="지역, 고객 상호명, 업종(한글)을 검색해 주세요.">
+          <input type="text" id="search-text-input" placeholder="고객 상호명 / 키워드를 검색해 주세요.">
           <span class="search-btn">🔍</span>
         </div>
       </div>
 
-      <div class="pad-16" style="padding-top: 0;">
+      <div class="content-scroll pad-16" style="padding-top: 0;">
         <div class="search-recent-header">
           <span class="section-title" style="margin:0;">최근 검색 기록</span>
-          <button class="btn-text">전체 삭제</button>
+          <button class="btn-text" id="btn-clear-recent">전체 삭제</button>
         </div>
-        <div class="chips-scroll mb-16" style="flex-wrap: wrap;">
-          <div class="chip">고객 상호명 ✕</div>
-          <div class="chip">서울 ✕</div>
-          <div class="chip">상일동 ✕</div>
-        </div>
+        <div class="chips-scroll mb-16" id="recent-search-chips" style="flex-wrap: wrap;"></div>
 
         <div class="section-title">지역선택</div>
+        <p style="font-size:11.5px; color:var(--text-light); margin:-4px 0 10px;">
+          시/도 → 구·군 → 읍·면·동 순으로 좁힙니다. 읍·면·동은 여러 곳 선택할 수 있어요.
+          <b>지역을 선택하면 담당 지사와 상관없이 그 지역 전체가 조회됩니다.</b>
+        </p>
 
-        <!-- 시/도 커스텀 드롭다운 -->
-        <div class="custom-select-wrap" id="sido-wrap">
-          <div class="custom-select-trigger" id="sido-trigger">
-            <span id="sido-label">시/도</span>
+        <select class="select-box" id="search-sido">
+          <option value="">시/도</option>
+        </select>
+        <select class="select-box" id="search-sigungu" disabled>
+          <option value="">구/군</option>
+        </select>
+
+        <!-- 읍/면/동 다중 선택 (체크박스 패널) -->
+        <div class="custom-select-wrap" id="dong-wrap">
+          <div class="custom-select-trigger" id="dong-trigger" aria-disabled="true">
+            <span id="dong-label">읍/면/동</span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
-          <div class="custom-select-panel" id="sido-panel">
-            <label class="check-item"><input type="checkbox" value="전체"> <span>전체</span></label>
-            <label class="check-item"><input type="checkbox" value="강원특별자치도"> <span>강원특별자치도</span></label>
-            <label class="check-item"><input type="checkbox" value="광주광역시"> <span>광주광역시</span></label>
-            <label class="check-item"><input type="checkbox" value="경기도"> <span>경기도</span></label>
-            <label class="check-item"><input type="checkbox" value="경상남도"> <span>경상남도</span></label>
-            <label class="check-item"><input type="checkbox" value="경상북도"> <span>경상북도</span></label>
-            <label class="check-item"><input type="checkbox" value="대구광역시"> <span>대구광역시</span></label>
-            <label class="check-item"><input type="checkbox" value="대전광역시"> <span>대전광역시</span></label>
-            <label class="check-item"><input type="checkbox" value="부산광역시"> <span>부산광역시</span></label>
-            <label class="check-item"><input type="checkbox" value="서울특별시"> <span>서울특별시</span></label>
-            <label class="check-item"><input type="checkbox" value="세종특별자치시"> <span>세종특별자치시</span></label>
-            <label class="check-item"><input type="checkbox" value="울산광역시"> <span>울산광역시</span></label>
-            <label class="check-item"><input type="checkbox" value="인천광역시"> <span>인천광역시</span></label>
-            <label class="check-item"><input type="checkbox" value="전라남도"> <span>전라남도</span></label>
-            <label class="check-item"><input type="checkbox" value="전라북도"> <span>전라북도</span></label>
-            <label class="check-item"><input type="checkbox" value="제주특별자치도"> <span>제주특별자치도</span></label>
-            <label class="check-item"><input type="checkbox" value="충청남도"> <span>충청남도</span></label>
-            <label class="check-item"><input type="checkbox" value="충청북도"> <span>충청북도</span></label>
-          </div>
+          <div class="custom-select-panel" id="dong-panel"></div>
         </div>
-
-        <select class="select-box" id="search-sigungu">
-          <option>구/군</option>
-        </select>
-        <select class="select-box" id="search-eupmyeondong">
-          <option>읍/면/동</option>
-        </select>
       </div>
 
       <div class="bottom-fixed-btn">
