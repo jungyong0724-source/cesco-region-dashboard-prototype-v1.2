@@ -219,6 +219,7 @@ body {
 .branch-select-wrap {
   position: relative;
   margin-bottom: 4px;
+  transition: opacity 0.15s;
 }
 .branch-select-trigger {
   display: flex;

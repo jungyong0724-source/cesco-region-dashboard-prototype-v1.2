@@ -192,6 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // ── 지사 필터: 조직축 → 사업부/총국 → 지사/지국 3단계 ─────────────
+  const branchSelectWrap = document.getElementById('branch-select-wrap');
   const branchTrigger    = document.getElementById('branch-select-trigger');
   const branchPanel      = document.getElementById('branch-select-panel');
   const branchLabelEl    = document.getElementById('branch-select-label');
@@ -254,6 +255,15 @@ document.addEventListener('DOMContentLoaded', () => {
       chip.textContent = b;
       chip.addEventListener('click', () => {
         if (nearbyMode) exitNearbyMode(false);
+        // 지사를 직접 고르면, 켜져 있던 지역선택(법정동)은 자동 해제 — "지역 선택 시 지사 무시" 정책의 반대 방향.
+        // nearbyMode를 다른 필터가 자동으로 끄는 것과 같은 패턴.
+        if (regionActive()) {
+          filterState.regionSido = '';
+          filterState.regionDongs = [];
+          updateAppliedRegionRow();
+          updateFilterBtnActive();
+          updateBranchDim();
+        }
         filterState.orgAxis = panelAxis;
         filterState.branch = b;
         updateBranchTriggerLabel();
@@ -269,6 +279,12 @@ document.addEventListener('DOMContentLoaded', () => {
     branchLabelEl.textContent = filterState.branch;
     const parent = BRANCH_TO_PARENT[filterState.orgAxis][filterState.branch] || '';
     branchSubEl.textContent = filterState.orgAxis + (parent ? ' · ' + parent : '');
+  };
+
+  // 지역선택이 적용돼 있는 동안엔 지사 셀렉터가 "지금 안 쓰이고 있다"는 걸 흐리게 표시
+  // (막지는 않음 — 지사를 직접 고르면 위 핸들러에서 지역선택이 자동 해제됨)
+  const updateBranchDim = () => {
+    branchSelectWrap.style.opacity = regionActive() ? '0.5' : '';
   };
 
   const openBranchPanel = () => {
@@ -777,6 +793,7 @@ document.addEventListener('DOMContentLoaded', () => {
     filterState.regionDongs = [];
     updateAppliedRegionRow();
     updateFilterBtnActive();
+    updateBranchDim();
     if (nearbyMode) exitNearbyMode(false);
     onFilterChange();
   });
@@ -935,6 +952,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updateAppliedRegionRow();
     updateFilterBtnActive();
+    updateBranchDim();
     if (nearbyMode) exitNearbyMode(false);
     navigateTo('screen-main');
     onFilterChange();
@@ -955,6 +973,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateKeywordClearBtn();
   updateAppliedRegionRow();
   updateFilterBtnActive();
+  updateBranchDim();
   renderMainList();
   window.addEventListener('load', () => setTimeout(initMainMap, 300));
 
