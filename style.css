@@ -119,6 +119,29 @@ body {
 .search-clear-btn { color: #B0B0B0; font-size: 14px; cursor: pointer; padding: 0 6px; flex-shrink: 0; }
 .search-btn { color: var(--cesco-blue); font-size: 18px; cursor: pointer; }
 
+/* ── 적용된 지역선택 표시 (필터 화면에서 적용 → 메인 검색창 아래 칩으로 표시) ── */
+.applied-region-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.applied-region-chip {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cesco-blue);
+  background: var(--cesco-blue-light);
+  border: 1px solid var(--cesco-blue);
+  border-radius: 14px;
+  padding: 4px 10px;
+}
+.applied-region-clear {
+  font-size: 11.5px;
+  color: var(--text-light);
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
 /* ── 로그인 사용자 · 내 주위 미계약 보기 (떳고 반영) ─────── */
 .user-info-bar {
   display: flex;
