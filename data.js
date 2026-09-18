@@ -89,12 +89,21 @@ const SIDO_SHORT = {
   '부산광역시': '부산', '광주광역시': '광주', '전라남도': '전남'
 };
 
-// ─── 업종 목록 (업종 빠른탭 — 세스코 방역 관점 10종) ──────────────────
-// 식품위생법·축산물위생관리법·의료법 기준의 세스코 자체 분류.
-// 마케팅 신업종/KSIC 중분류와의 매핑은 `기획/업종매핑표_초안_v0.1.md` 참조.
+// ─── 업종 목록 (업종 빠른탭 — KSIC 정합 재설계 9종, 2026-09-18 v0.2) ──
+// 구 10종(일반음식점/휴게음식점/숙박/의원/식품제조/제과점/축산가공/식육포장처리/기타소매/기타서비스)은
+// 식품위생법 등 세스코 자체 분류라 KSIC 경계와 어긋나는 지점이 있어(일반/휴게음식점↔KSIC I561/I562,
+// 축산가공↔식육포장처리 구분 불가) KSIC로 완전히 갈리는 카테고리로 재정리했다.
+// 각 탭의 KSIC 매핑은 `기획/업종매핑표_초안_v0.1.md`(v0.2) 참조.
 const INDUSTRY_TAB_LIST = [
-  '일반음식점', '휴게음식점', '숙박', '의원', '식품제조',
-  '제과점', '축산가공', '식육포장처리', '기타소매', '기타서비스'
+  '음식점',      // KSIC I561 (한식/외국식/간이음식점 등, 구 일반음식점+휴게음식점 중 식사류)
+  '카페·음료',   // KSIC I5622 (커피전문점 등, 구 휴게음식점 중 음료류 분리 신설)
+  '숙박',        // KSIC I55
+  '의료기관',    // KSIC Q86 (구 '의원'에서 병원까지 범위 확장)
+  '식품제조',    // KSIC C10
+  '제과점',      // KSIC I56191
+  '축산물가공',  // KSIC C1012 (구 축산가공+식육포장처리 통합)
+  '소매업',      // KSIC G47 (구 기타소매)
+  '기타서비스'   // KSIC S96 등
 ];
 
 // ─── 개업기간 필터 (Phase 1.5 것과 동일 — 4구간 단일선택) ────────────
@@ -130,7 +139,7 @@ const ALL_CUSTOMERS = [
     lng: 126.967838,
     branch: '서울동부지사',
     clcBranch: '서울중앙지국',
-    industryTab: '기타소매',
+    industryTab: '소매업',
     openDate: '2026-08-19'
   },
   {
@@ -178,7 +187,7 @@ const ALL_CUSTOMERS = [
     lng: 127.06655,
     branch: '서울동부지사',
     clcBranch: '서울북부지국',
-    industryTab: '기타소매',
+    industryTab: '소매업',
     openDate: '2026-08-10'
   },
   {
@@ -202,7 +211,7 @@ const ALL_CUSTOMERS = [
     lng: 126.99482,
     branch: '서울동부지사',
     clcBranch: '서울중앙지국',
-    industryTab: '기타소매',
+    industryTab: '소매업',
     openDate: '2026-08-05'
   },
   {
@@ -250,7 +259,7 @@ const ALL_CUSTOMERS = [
     lng: 127.01554,
     branch: '경기남부지사',
     clcBranch: '경기지국',
-    industryTab: '기타소매',
+    industryTab: '소매업',
     openDate: '2026-08-14'
   },
   {
@@ -274,7 +283,7 @@ const ALL_CUSTOMERS = [
     lng: 127.14701,
     branch: '경기북부지사',
     clcBranch: '경기지국',
-    industryTab: '기타소매',
+    industryTab: '소매업',
     openDate: '2026-08-12'
   },
   {
@@ -394,7 +403,7 @@ const ALL_CUSTOMERS = [
     lng: 128.53849,
     branch: '대구지사',
     clcBranch: '대구지국',
-    industryTab: '일반음식점',
+    industryTab: '음식점',
     openDate: '2026-06-25'
   },
   {
@@ -442,7 +451,7 @@ const ALL_CUSTOMERS = [
     lng: 128.59506,
     branch: '대구지사',
     clcBranch: '대구지국',
-    industryTab: '일반음식점',
+    industryTab: '음식점',
     openDate: '2026-05-28'
   },
   {
