@@ -857,6 +857,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ── 13-2. 고객유형(업종) — 마케팅 신업종 연쇄 드롭다운 ─────────────
+  // [2026-09-30 확인, 화면 비노출] 이 INDUSTRY_TYPE_DATA(대/중/소/세분류, KBMLC~KBMSSC) 코드 체계가
+  // 정답임을 참고 스프레드시트("마케팅신업종 10차산업분류리스트" 2.3고객유형 시트, 572행)와 교차검증
+  // 완료(S04003/R16011/E02006 등 코드·명칭 일치). 실서비스 customer-type API가 지금 이 체계 대신
+  // 전혀 다른 데이터(A001~A003 가정집/요식업체/일반사업체, 소분류 이하 0건)를 반환하는 버그가 있어
+  // IS운영실에 원본 매핑 기준 수정을 요청 중. 수정 완료 후에는 이 드롭다운에서 선택한 코드를 그대로
+  // SCH_KBMLC/SCH_KBMMC/SCH_KBMSC/SCH_KBMSSC로 보내면 됨 — 09-21에 세워둔 "KSIC(SCH_BZC_CD)로
+  // 변환해서 보낸다"는 우회 계획은 백엔드 수정이 완료되면 더 이상 필요하지 않음.
   const typeL1 = document.getElementById('filter-type-l1');
   const typeL2 = document.getElementById('filter-type-l2');
   const typeL3 = document.getElementById('filter-type-l3');
