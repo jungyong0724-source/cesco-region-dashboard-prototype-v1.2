@@ -127,16 +127,11 @@
       </header>
 
       <div class="content-scroll pad-16">
-        <p style="font-size:12px; color:var(--text-light); margin-bottom:16px;">
-          개업기간 필터는 메인화면 상단으로 통합됐습니다 — 여기서는 지역선택·고객유형(업종)·매출구간을 다룹니다.
-        </p>
+        <!-- 개발 참고 메모(화면 비노출): 개업기간 필터는 메인화면 상단으로 통합됨 — 이 화면은 지역선택·고객유형(업종)·매출구간만 다룸 -->
 
         <div id="section-region" class="filter-section">
           <div class="section-title" style="margin-top:0;">지역선택</div>
-          <p style="font-size:11.5px; color:var(--text-light); margin:-4px 0 10px;">
-            시/도 → 구·군 → 읍·면·동 순으로 좁힙니다. 읍·면·동은 여러 곳 선택할 수 있어요.
-            <b>지역을 선택하면 담당 지사와 상관없이 그 지역 전체가 조회됩니다.</b>
-          </p>
+          <!-- 개발 참고 메모(화면 비노출): 시/도→구·군→읍·면·동 순 좁히기, 읍·면·동 다중선택 가능, 지역 선택 시 담당 지사 무시하고 해당 지역 전체 조회(SCH_DEPT_CD 미전달) -->
 
           <select class="select-box" id="filter-sido">
             <option value="">시/도</option>
