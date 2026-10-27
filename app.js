@@ -140,7 +140,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // 4. 통합 필터 조회 (조직축·지사·업종·개업기간 + 내 주위 모드)
   // ══════════════════════════════════════════════════════
   const getFilteredList = () => {
-    if (nearbyMode) return nearbyList;
+    // 내 주위 모드: 위치 조건(지사·지역·키워드) 대신 내 위치 반경 거리순. 업종·개업기간은 AND로 함께 적용
+    if (nearbyMode) {
+      return nearbyList
+        .filter(c => filterState.industry === 'all' || c.industryTab === filterState.industry)
+        .filter(c => filterState.period === 'all' || c.openBucket === filterState.period)
+        .slice(0, 20);
+    }
     // 지역(법정동)을 직접 선택하면 SCH_DEPT_CD(지사)를 빼고 선택 지역 전체를 조회 (Phase1 QA FAQ 확정)
     const useBranch = regionActive() ? 'all' : filterState.branch;
     return filterCustomers({
@@ -185,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const selectIndustry = (v) => {
-    if (nearbyMode) exitNearbyMode(false);
+    // 업종은 "좁히기 조건" — 내 주위 모드를 풀지 않고 내 주위 결과에 함께 적용
     filterState.industry = v;
     renderIndustryTabs();
     onFilterChange();
@@ -276,6 +282,11 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const updateBranchTriggerLabel = () => {
+    if (nearbyMode) {
+      branchLabelEl.textContent = '내 위치 반경';
+      branchSubEl.textContent = '지사 선택 시 내 주위 해제';
+      return;
+    }
     branchLabelEl.textContent = filterState.branch;
     const parent = BRANCH_TO_PARENT[filterState.orgAxis][filterState.branch] || '';
     branchSubEl.textContent = filterState.orgAxis + (parent ? ' · ' + parent : '');
@@ -335,7 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
       chip.textContent = p.label;
       chip.dataset.period = p.key;
       chip.addEventListener('click', () => {
-        if (nearbyMode) exitNearbyMode(false);
+        // 개업기간도 "좁히기 조건" — 내 주위 모드 유지
         filterState.period = p.key;
         renderPeriodChips();
         onFilterChange();
@@ -597,30 +608,42 @@ document.addEventListener('DOMContentLoaded', () => {
   // ══════════════════════════════════════════════════════
   const btnNearby = document.getElementById('btn-nearby');
 
+  // 거리순 전체 목록(개업 1년 이내)만 만들어 두고, 업종·개업기간 AND + 상위 20곳 자르기는 getFilteredList에서
   const buildNearbyList = (origin) => {
     return ALL_CUSTOMERS
       .filter(c => c.openBucket !== null)   // 개업 1년 초과 매장은 제외 (조회 정책 일치)
       .map(c => {
         c._distanceKm = haversineKm(origin.lat, origin.lng, c.lat, c.lng);
-        return c;
-      })
-      .sort((a, b) => a._distanceKm - b._distanceKm)
-      .slice(0, 20)
-      .map(c => {
         c.distance = c._distanceKm < 1 ? `${Math.round(c._distanceKm * 1000)}m` : `${c._distanceKm.toFixed(1)}km`;
         return c;
-      });
+      })
+      .sort((a, b) => a._distanceKm - b._distanceKm);
   };
 
+  // 내 주위 모드 정책(2026-10-27 기획 변경): 딤 처리 없음.
+  //  - 위치 조건(지사·지역선택)·상호 검색을 하면 내 주위 모드 해제 → "위치 조건은 한 번에 하나만"
+  //  - 업종·개업기간은 내 주위 모드 유지한 채 AND 적용
+  //  - 모드 중 지사 셀렉터 라벨은 "내 위치 반경"으로 바꿔 지사 조건이 걸린 것으로 오해하지 않게 함
   const enterNearbyMode = (origin) => {
     nearbyMode = true;
     nearbyOrigin = origin;
     nearbyList = buildNearbyList(origin);
+    // 다른 위치 조건(지역선택)·키워드는 내 주위와 함께 쓰지 않으므로 해제
+    if (regionActive()) {
+      filterState.regionSido = '';
+      filterState.regionDongs = [];
+      updateAppliedRegionRow();
+      updateFilterBtnActive();
+      updateBranchDim();
+    }
+    if (filterState.keyword) {
+      filterState.keyword = '';
+      keywordInput.value = '';
+      updateKeywordClearBtn();
+    }
     btnNearby.textContent = '✕ 닫기';
     btnNearby.classList.add('active');
-    document.querySelectorAll('.tabs-block, .map-search-row').forEach(el => el.style.opacity = '0.4');
-    document.querySelectorAll('.tabs-block .radio-chip-inline, #main-chips .radio-chip-inline, #btn-filter, #branch-select-trigger')
-      .forEach(el => el.style.pointerEvents = 'none');
+    updateBranchTriggerLabel();
     onFilterChange();
     updateResultBranchText();
   };
@@ -631,13 +654,9 @@ document.addEventListener('DOMContentLoaded', () => {
     nearbyList = [];
     btnNearby.textContent = '📍 내 주위 신규 개업 매장 보기';
     btnNearby.classList.remove('active');
-    document.querySelectorAll('.tabs-block, .map-search-row').forEach(el => el.style.opacity = '1');
-    document.querySelectorAll('.tabs-block .radio-chip-inline, #main-chips .radio-chip-inline, #btn-filter, #branch-select-trigger')
-      .forEach(el => el.style.pointerEvents = '');
-    if (refresh) {
-      onFilterChange();
-      updateResultBranchText();
-    }
+    updateBranchTriggerLabel();
+    updateResultBranchText();
+    if (refresh) onFilterChange();
   };
 
   btnNearby.addEventListener('click', () => {
@@ -671,9 +690,12 @@ document.addEventListener('DOMContentLoaded', () => {
     keywordClearBtn.style.display = filterState.keyword ? 'inline' : 'none';
   };
   const applyKeyword = () => {
-    filterState.keyword = keywordInput.value.trim();
+    const next = keywordInput.value.trim();
+    // blur만으로(값 변화 없이) 내 주위 모드가 풀리지 않도록, 실제로 검색어가 바뀌었을 때만 처리
+    if (next === filterState.keyword) return;
+    filterState.keyword = next;
     updateKeywordClearBtn();
-    if (nearbyMode) exitNearbyMode(false);
+    if (nearbyMode && next) exitNearbyMode(false);   // 상호 검색은 위치 조건처럼 내 주위 해제
     onFilterChange();
   };
   keywordInput.addEventListener('keydown', e => {
@@ -960,7 +982,8 @@ document.addEventListener('DOMContentLoaded', () => {
     updateAppliedRegionRow();
     updateFilterBtnActive();
     updateBranchDim();
-    if (nearbyMode) exitNearbyMode(false);
+    // 지역을 실제로 고른 경우에만 내 주위 해제(고객유형·매출구간만 보고 적용하면 내 주위 유지)
+    if (nearbyMode && regionActive()) exitNearbyMode(false);
     navigateTo('screen-main');
     onFilterChange();
   });
